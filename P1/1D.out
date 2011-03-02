@@ -12,4 +12,8 @@
 \BOOKMARK [1][-]{section.7}{Model Parameters}{}
 \BOOKMARK [2][-]{subsection.7.1}{Grid Resolution}{section.7}
 \BOOKMARK [2][-]{subsection.7.2}{Courant Stability Condition}{section.7}
-\BOOKMARK [1][-]{section.8}{FDTD Algorithm}{}
+\BOOKMARK [1][-]{section.8}{Learning from our Model}{}
+\BOOKMARK [2][-]{subsection.8.1}{Efficent Fourier Transform}{section.8}
+\BOOKMARK [2][-]{subsection.8.2}{Reflectance and Transmittance}{section.8}
+\BOOKMARK [2][-]{subsection.8.3}{Total-Field / Scattered-Field}{section.8}
+\BOOKMARK [1][-]{section.9}{FDTD Algorithm}{}

@@ -524,8 +524,180 @@ So now we can place an upper limit on a time steps
 To force our wave to travel the distance of one grid cell in exactly two time steps we finish up with \eqref{eq:courantcondition}
 
 \begin{equation}
+ \label{eq:courantcondition}
  \Delta t = \frac{n \Delta z}{2c_0}
 \end{equation}
+
+
+\section{Learning from our Model}
+
+\subsection{Efficent Fourier Transform}
+
+In order to be able to learn from our model we must be able to somehow collect the data and put it in a form that is useful.  In our case we can use the Fourier Transform to calculate the transmitted and reflected energy.  In order to save CPU and Memory consumption insteam of using the traditional method of recording the fields as functions of time.  Then perform the FFT on these functions.  We are instead going to perform a numerical approximation of the Fourier Transform as the model is running.  In each iteration of the model we can sum up parts of the energy that exist as time goes by.  
+
+The standard Fourier transform is defined in \eqref{eq:FourierTransformTraditional}
+
+\begin{equation}
+ \label{eq:FourierTransformTraditional}
+ F(f) = \int_{-\infty}^{\infty}f(t)e^{-j2 \pi ft}
+\end{equation}
+
+Since we only know the f(t) at descrete points, the Fourier transform is approximated numerically in \eqref{eq:FourierTransformApprox}
+
+\begin{equation}
+ \label{eq:FourierTransformApprox}
+  F(f) \cong  \sum_{m=1}^{M}\Delta tf(m\Delta t)e^{-j2\pi fm\Delta t}
+\end{equation}
+
+We can write this in a form that is beneficial for numerical modeling \eqref{eq:FourierTransformModel}
+
+\begin{equation}
+  \label{eq:FourierTransformModel}
+  F(f) \cong \Delta t \sum_{m=1}^{M}\left(e^{-j2\pi f\Delta t}\right)^{m}f(m\Delta t)
+\end{equation}
+
+Finally we can break this down into parts
+
+
+\begin{eqnarray}
+ F(f) \cong {\color{red}\Delta t} \sum_{m=1}^{M}{\color{green}\left(e^{-j2\pi f\Delta t}\right)}^{m}{\color{blue}f(m\Delta t)}\\
+ \color{red}{\Delta t} & \mbox{Multiplication can be done after the main FDTD loop in a post-processing step}\\
+ \color{green}e^{-j2\pi f\Delta t} & \mbox{This ``kernel'' can be computed prior to the main FDTD loop for each frequency of interest}\\
+ \color{blue}f(m\Delta t) & \mbox{This is simply the field value of interst at the current time step.}
+\end{eqnarray}
+
+\subsection{Reflectance and Transmittance}
+
+When simulating passive device we generally want to plot an ouput of reflectance and transmittance as a function of frequency.  Reflectance is the fraction of power reflected from a device.  Transmittance is the fraction of power transmitted through the device.
+
+\begin{figure}[ht]
+   \centering
+     \includegraphics[width=0.75\textwidth]{RTPlot.png}
+\end{figure}
+
+We typically start the computation of power by Fourier transforming the reflected and transmitted field using our approximated fourier transform \eqref{eq:FourierTransformModel}.  Our results will typically look like figure \ref{fig:RTFieldsResults}
+
+\begin{figure}[ht]
+  \label{fig:RTFieldsResults}
+   \centering
+     \includegraphics[width=0.75\textwidth]{RTFieldsResults.png}
+  \caption{FDTD typical Reflected and Transmitted Power results}
+\end{figure}
+
+Finally we must normalize the spectra to calculate transmittancee and reflectance.  We do this by dividing the reflection and transmission by the source spectrum.  We check for energy conversvation by adding the reflectance and transmittance and ensuring the sum equals 100\%.  This is assuming the device itself as no loss or gain.
+
+
+\begin{figure}[ht]
+   \centering
+     \includegraphics[width=0.75\textwidth]{ReflectanceNorm.png}
+\end{figure}
+
+\begin{equation}
+ R(f) = \left(\frac{FFT[E_{ref}(t)]}{FFT[E_{src}(t)]}\right)^2
+\end{equation}
+
+
+
+\begin{figure}[ht]
+   \centering
+     \includegraphics[width=0.75\textwidth]{TransmittanceNorm.png}
+\end{figure}
+
+\begin{equation}
+ T(f) = \left(\frac{FFT[E_{trn}(t)]}{FFT[E_{src}(t)]}\right)^2
+\end{equation}
+
+
+\begin{figure}[ht]
+   \centering
+     \includegraphics[width=0.75\textwidth]{ConservationNorm.png}
+\end{figure}
+
+\begin{equation}
+ C(f) = R(f) + T(f)
+\end{equation}
+
+\subsection{Total-Field / Scattered-Field}
+
+The total-field/scattered-field (TF/SF) is a technique to inject a ``one-way'' source.  This eliminates backward propagating energy, ensures waves at the boundaries are only traveling outward, and 100\% of energy inejected by the source is incident on the device being simulated.  In figure \ref{fig:1DGridLayout} shows the typical grid layout with the TF/SF interface included. 
+
+\begin{figure}[ht]
+  \label{fig:1DGridLayout}
+   \centering
+     \includegraphics[width=0.75\textwidth]{1DGridLayout.png}
+   \caption{1D Grid Layout including TF/SF}
+\end{figure}
+
+On the scattered field side of the TF/SF interface, the finite-difference equation contains a term from the total-field side.  This is due to the staggered nature of the yee grid, this only occurs in the udpate equation for a magnetic field.
+
+\begin{figure}[ht]
+  \label{fig:1DGridSourceBoundary}
+   \centering
+     \includegraphics[width=0.25\textwidth]{1DGridSourceBoundary.png}
+   \caption{1D Grid Source Boundary}
+\end{figure}
+
+\begin{equation*}
+  \tilde{H}_{x}\mid_{t+\frac{\Delta t}{2}}^{k_{src}-1} = \tilde{H}_{x}\mid_{t-\frac{\Delta t}{2}}^{k_{src}-1} + m_{H_x}^{k_{src}-1}\left(\frac{E_{y}\mid_{t}^{k_{src}} - E_{y}\mid_{t}^{k_{src}-1}}{\Delta z}\right)
+\end{equation*}
+
+This equation that is trying to calculate a Total-Field value contains a Scattered-Field value $E_{y}^{k_{src}}$.  To fix this issue we must now subtract out the source from this Scattered-Field value.
+
+\begin{equation*}
+  \tilde{H}_{x}\mid_{t+\frac{\Delta t}{2}}^{k_{src}-1} = \tilde{H}_{x}\mid_{t-\frac{\Delta t}{2}}^{k_{src}-1} + m_{H_x}^{k_{src}-1}\left(\frac{\left( E_{y}\mid_{t}^{k_{src}} - E_{y}^{src}\mid_{t}^{k_{src}} \right) - E_{y}\mid_{t}^{k_{src}-1}}{\Delta z}\right)
+\end{equation*}
+
+Which can be simplified to
+
+\begin{equation}
+  \tilde{H}_{x}\mid_{t+\frac{\Delta t}{2}}^{k_{src}-1} = \tilde{H}_{x}\mid_{t-\frac{\Delta t}{2}}^{k_{src}-1} + m_{H_x}^{k_{src}-1}\left(\frac{E_{y}\mid_{t}^{k_{src}} - E_{y}\mid_{t}^{k_{src}-1}}{\Delta z}\right) - \frac{m_{H_x}^{k_{src}-1}}{\Delta z}  E_{y}^{src}\mid_{t}^{k_{src}} 
+\end{equation}
+
+This has to be accomplished for electric field update equation as well.
+
+\begin{equation}
+  E_{y}\mid_{t+\Delta t}^{k_{src}} = E_{y}\mid_{t}^{k_{src}} + m_{E_y}^{k_{src}}\left(\frac{\tilde{H}_{x}^{k_{src}}\mid_{t+\frac{\Delta t}{2}} - \tilde{H}_{x}\mid^{k_{src}-1}_{t+\frac  {\Delta t}{2}}}{\Delta z}\right)
+\end{equation}
+
+\begin{equation}
+  E_{y}\mid_{t+\Delta t}^{k_{src}} = E_{y}\mid_{t}^{k_{src}} + m_{E_y}^{k_{src}}\left(\frac{\tilde{H}_{x}^{k_{src}}\mid_{t+\frac{\Delta t}{2}} - \left(\tilde{H}_{x}\mid^{k_{src}-1}_{t+\frac{\Delta t}{2}} +  \tilde{H}_{x}^{src}\mid^{k_{src}-1}_{t+\frac  {\Delta t}{2}}\right)}{\Delta z}\right)
+\end{equation}
+
+\begin{equation}
+  E_{y}\mid_{t+\Delta t}^{k_{src}} = E_{y}\mid_{t}^{k_{src}} + m_{E_y}^{k_{src}}\left(\frac{\tilde{H}_{x}^{k_{src}}\mid_{t+\frac{\Delta t}{2}} - \tilde{H}_{x}\mid^{k_{src}-1}_{t+\frac  {\Delta t}{2}}}{\Delta z}\right)- \frac{m_{E_y}^{k_{src}}}{\Delta z}\tilde{H}_{x}^{src}\mid^{k_{src}-1}_{t+\frac{\Delta t}{2}}
+\end{equation}
+
+
+\textbf{Source Terms}
+
+Now we know we need to calculate two source functions $\tilde{H}_{x}^{src}\mid^{k_{src}-1}_{t+\frac{\Delta t}{2}}$ and $E_{y}^{src}\mid_{t}^{k_{src}}$  We need to make a few observations that must be accounted for before we can calcuate these source functions correctly.
+
+\begin{itemize}
+ \item The amplitude of these functions can be different as E and H are related through the material impedance.
+ \item These functions are a half grid cell apart and have a small time delay between them.
+ \item These functions exist at different time steps.
+\end{itemize}
+
+Assuming the source is injected inside a homogeneious material, the fields must be plane waves.
+
+\begin{equation}
+ E_y(t)=\sin(\omega t - \beta z)
+\end{equation}
+
+We now must find the amplitude A and phase $\phi$ of the magnetic field related to the elctric field
+
+\begin{equation}
+ \tilde{H}_x(t) = A\sin(\omega t - \beta z - \phi)
+\end{equation}
+
+The Amplitude and phase depend on the mode
+
+
+\begin{eqnarray}
+ A_{E_yH_x} = -\sqrt{\frac{\epsilon_r^{src}}{\mu_r^{src}}} & \phi_{E_yH_x} = 0\\
+ A_{E_xH_y} = \sqrt{\frac{\epsilon_r^{src}}{\mu_r^{src}}} & \phi_{E_xH_y} = 0
+\end{eqnarray}
+
 
 
 \section{FDTD Algorithm}
@@ -542,8 +714,7 @@ We first must do some initialization work
 
 The meat of the algorithm is the loop
 
-\begin{itemize}
- \item Update H from E
+\begin{itemize} \item Update H from E
  \item Update E from H
  \item Inject Source
  \item Visualize Fields
