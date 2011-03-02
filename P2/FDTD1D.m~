@@ -18,16 +18,36 @@ u0 = 1.256637061*10^-6; %H/m
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %Simulated Environment Settings
-STEPS = 1000;
-f_max = 1e9;  % 1Ghz
+STEPS = 2000;
 Nz = 180;
-dz = 1.4286e-8;
+dz = 0.02;
+f_max = 10e9;  % 10Ghz
 
-%Compute Time Steps
-dt = dz/(2*c0); %secs
+%Compute Grid Resolution
+N_lambda = 20;
+lambda_min = c0 / (f_max);
+d_wl = lambda_min/N_lambda;
+N_d = 4;
+d_d = 1/4; % since we are only working with freespace we will set d to 1;
+dz = min(d_wl, d_d);
+Nz = ceil(1/dz);
+dz = 1/Nz;
+
 
 %Grid Axis
 za=[0:Nz-1]*dz;
+
+%Compute Time Steps
+dt = dz/(2*c0); %secs
+ta = [0:STEPS-1]*dt;     % Time Axis;
+
+% Source Parameters
+nzc = round (Nz/2);  %Position of Sources
+NFREQ = f_max / 10e6; %Frequencies every 100Mhz upto 10Ghz
+FREQ = linspace(0, f_max, NFREQ); %FREQ List
+tau = 0.5/f_max;        % tau parameter
+t0 = 6*tau;              % Delay/Pulse Position
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %  Model
@@ -40,10 +60,6 @@ UR = ones([1 Nz]);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %  Source
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-nzc = round (Nz/2);  %Position of Sources
-tau = 1.2e-15        %normally 0.5/f_max *** Not working***
-ta = [0:STEPS-1]*dt;     % Time Axis;
-t0 = 6*tau;              % Delay
 s = dz/(2*c0) + dt/2;    % Delay between E and H
 Esrc = exp(-((ta-t0)/tau).^2); % E Source
 A = -sqrt(ER(nzc)/UR(nzc));    % H Amplitude
@@ -66,6 +82,13 @@ Hx = zeros([1 Nz]);
 h1 = 0; h2 = 0; h3 = 0;
 e1 = 0; e2 = 0; e3 = 0;
 
+%Power Measurements
+REF = zeros(1, NFREQ);
+TRN = zeros(1, NFREQ);
+SRC = zeros(1, NFREQ);
+K = exp(-1i*2*pi*dt*FREQ);
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Execute Simulation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -79,6 +102,9 @@ for t = 1:STEPS
   
   Hx(Nz) = Hx(Nz) + mHR(Nz)*(e3 - Ey(Nz));
 
+  %H Sources
+  Hx(nzc-1) = Hx(nzc-1) - mHR(nzc-1)*Esrc(t);
+
   h3 = h2; h2 = h1; h1 = Hx(1); % Boundary Params;
   
   % Calculate E  
@@ -88,48 +114,66 @@ for t = 1:STEPS
   end
   
   %Inject Source
-  Ey(nzc) = Ey(nzc) + Esrc(t);
+  Ey(nzc) = Ey(nzc) - mER(nzc)*Hsrc(t);
 
   e3=e2; e2=e1; e1=Ey(Nz); % Boundary Params;
  
-  h = plot(za, Ey, '-b'); hold on;
-  plot(za, Hx, '-r'); hold off;
-  axis([za(1) za(Nz) -1.1 1.1]);
-  xlabel('z');
-  title(['Field at Step ' num2str(t) ' of ' num2str(STEPS)]);    
-  drawnow();
-    
-  if(mod(t,50) == 0)
-    saveas(h, ['images/' num2str(t) '.jpg'], 'jpg');
-  end
+ %Update Fourier Transforms
+ for nf = 1: NFREQ
+   REF(nf) = REF(nf) + (K(nf)^t)*Ey(1)*dt;
+   TRN(nf) = TRN(nf) + (K(nf)^t)*Ey(Nz)*dt;
+   SRC(nf) = SRC(nf) + (K(nf)^t)*Esrc(t)*dt;
  end
+ 
+ 
+ if(mod(t,10) == 0)
+   h = subplot(11,1,1:4);
+   plot(za, Ey, '-b'); hold on;
+   plot(za, Hx, '-r'); hold off;
+   axis([za(1) za(Nz) -1.1 1.1]);
+   xlabel('z');
+   title(['Field at Step ' num2str(t) ' of ' num2str(STEPS)]);    
+ 
+   R = abs(REF./SRC).^2;
+   T = abs(TRN./SRC).^2;
 
+   subplot(11,1,8:11)
+   plot(FREQ, R, '-r'); hold on;
+   plot(FREQ, T, '-b');
+   plot(FREQ, R+T, ':k', 'LineWidth', 2); hold off;
+   axis([FREQ(1) FREQ(NFREQ) -0.1 1.5]);
+   xlabel('Frequency');
+   title('Reflectance and Transmittance');
+ end
+   
+drawnow();
+  
+            
+  %if(mod(t,50) == 0)
+  %  saveas(h, ['images/' num2str(t) '.jpg'], 'jpg');
+  %end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Compute Values
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+REF = abs(REF./SRC).^2;
+TRN = abs(TRN./SRC).^2;
+CON = REF+TRN;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Plot Fields
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fig = figure;
-SetFigure(fig, 'HW#3-P2', [500 274 965 826]);
+SetFigure(fig, 'HW#5-P2', [500 274 965 826]);
 
-%Plot Magnetic Field
-subplot(211)
-h = plot(Hx, '-r', 'LineWidth', 2);
-title('Magnetic Field');
-h = get(h, 'Parent');
-set(h, 'Fontsize', 14);
-xlabel('z');
-ylabel('Hx', 'Rotation', 0);
-set(gca,'YTickLabel',{'1','0.5','0', '-0.5', '-1'})
-
-%Plot Electric Field
-subplot(212)
-h = plot(Ey, '-b', 'LineWidth', 2);
-title('Electric Field');
-h = get(h, 'Parent');
-set(h, 'Fontsize', 14);
-xlabel('z');
-ylabel('Ey', 'Rotation', 0);
-set(gca,'YTickLabel',{'1','0.5','0', '-0.5', '-1'})
+plot(FREQ, REF, '-r', 'LineWidth', 2); hold on;
+plot(FREQ, TRN, '-b', 'LineWidth', 2);
+plot(FREQ, CON, ':k', 'LineWidth', 3); hold off;
+axis([FREQ(1) FREQ(NFREQ) -0.1 1.2]);
+xlabel('Frequency');
+title('Reflectance and Transmittance');
 
 
 

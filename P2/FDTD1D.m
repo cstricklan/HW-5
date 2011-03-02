@@ -44,7 +44,7 @@ ta = [0:STEPS-1]*dt;     % Time Axis;
 % Source Parameters
 nzc = round (Nz/2);  %Position of Sources
 NFREQ = f_max / 10e6; %Frequencies every 100Mhz upto 10Ghz
-FREQ = linspace(0, f_max, NFREQ);
+FREQ = linspace(0, f_max, NFREQ); %FREQ List
 tau = 0.5/f_max;        % tau parameter
 t0 = 6*tau;              % Delay/Pulse Position
 
@@ -119,40 +119,40 @@ for t = 1:STEPS
   e3=e2; e2=e1; e1=Ey(Nz); % Boundary Params;
  
  %Update Fourier Transforms
-for nf = 1: NFREQ
-  REF(nf) = REF(nf) + (K(nf)^t)*Ey(1)*dt;
-  TRN(nf) = TRN(nf) + (K(nf)^t)*Ey(Nz)*dt;
-  SRC(nf) = SRC(nf) + (K(nf)^t)*Esrc(t)*dt;
-end
+ for nf = 1: NFREQ
+   REF(nf) = REF(nf) + (K(nf)^t)*Ey(1)*dt;
+   TRN(nf) = TRN(nf) + (K(nf)^t)*Ey(Nz)*dt;
+   SRC(nf) = SRC(nf) + (K(nf)^t)*Esrc(t)*dt;
+ end
  
  
  if(mod(t,10) == 0)
- subplot(11,1,1:4);
- plot(za, Ey, '-b'); hold on;
- plot(za, Hx, '-r'); hold off;
- axis([za(1) za(Nz) -1.1 1.1]);
- xlabel('z');
- title(['Field at Step ' num2str(t) ' of ' num2str(STEPS)]);    
+   h = subplot(11,1,1:4);
+   plot(za, Ey, '-b'); hold on;
+   plot(za, Hx, '-r'); hold off;
+   axis([za(1) za(Nz) -1.1 1.1]);
+   xlabel('z');
+   title(['Field at Step ' num2str(t) ' of ' num2str(STEPS)]);    
  
-R = abs(REF./SRC).^2;
-T = abs(TRN./SRC).^2;
+   R = abs(REF./SRC).^2;
+   T = abs(TRN./SRC).^2;
 
- subplot(11,1,8:11)
- plot(FREQ, R, '-r'); hold on;
- plot(FREQ, T, '-b');
- plot(FREQ, R+T, ':k'); hold off;
- axis([FREQ(1) FREQ(NFREQ) -0.1 1.5]);
- xlabel('Frequency');
- title('Reflectance and Transmittance');
-  end
+   subplot(11,1,8:11)
+   plot(FREQ, R, '-r'); hold on;
+   plot(FREQ, T, '-b');
+   plot(FREQ, R+T, ':k', 'LineWidth', 2); hold off;
+   axis([FREQ(1) FREQ(NFREQ) -0.1 1.5]);
+   xlabel('Frequency');
+   title('Reflectance and Transmittance');
+ end
    
 drawnow();
   
             
-%  if(mod(t,50) == 0)
-%    saveas(h, ['images/' num2str(t) '.jpg'], 'jpg');
+  %if(mod(t,50) == 0)
+  %  saveas(h, ['images/' num2str(t) '.jpg'], 'jpg');
   %end
- end
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Compute Values
@@ -166,27 +166,14 @@ CON = REF+TRN;
 % Plot Fields
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fig = figure;
-%SetFigure(fig, 'HW#3-P2', [500 274 965 826]);
+SetFigure(fig, 'HW#5-P2', [500 274 965 826]);
 
-%Plot Magnetic Field
-subplot(211)
-h = plot(Hx, '-r', 'LineWidth', 2);
-title('Magnetic Field');
-h = get(h, 'Parent');
-set(h, 'Fontsize', 14);
-xlabel('z');
-ylabel('Hx', 'Rotation', 0);
-set(gca,'YTickLabel',{'1','0.5','0', '-0.5', '-1'})
-
-%Plot Electric Field
-subplot(212)
-h = plot(Ey, '-b', 'LineWidth', 2);
-title('Electric Field');
-h = get(h, 'Parent');
-set(h, 'Fontsize', 14);
-xlabel('z');
-ylabel('Ey', 'Rotation', 0);
-set(gca,'YTickLabel',{'1','0.5','0', '-0.5', '-1'})
+plot(FREQ, REF, '-r', 'LineWidth', 2); hold on;
+plot(FREQ, TRN, '-b', 'LineWidth', 2);
+plot(FREQ, CON, ':k', 'LineWidth', 3); hold off;
+axis([FREQ(1) FREQ(NFREQ) -0.1 1.2]);
+xlabel('Frequency');
+title('Reflectance and Transmittance');
 
 
 
